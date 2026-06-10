@@ -268,12 +268,23 @@
   }
 
   /* ---- Grid ---- */
+  /* Pružná oblast: zaplňuje volný prostor mezi objednávkami a pultem.
+     Pult tak zůstává na stejné pozici nezávisle na velikosti mřížky i typu úrovně,
+     mřížka je zarovnaná ke spodnímu okraji (blíž k pultu). */
+  .grid-area {
+    flex: 1 1 auto;
+    width: 100%; max-width: 360px;
+    margin: 0 auto 14px;
+    display: flex;
+    justify-content: center;
+    align-items: flex-end;
+    min-height: 240px;
+  }
   .grid {
     display: grid; gap: var(--gap);
-    width: 100%; max-width: 360px; margin: 0 auto;
+    /* grid-template-columns + grid-auto-rows jsou inline z JS podle počtu sloupců/řad */
   }
   .cell {
-    aspect-ratio: 1; width: 100%;
     border-radius: 14px;
     background: #ece6da;
     display: flex; align-items: center; justify-content: center;
@@ -407,8 +418,10 @@
     <div class="recipes" id="recipes"></div>
   </div>
 
-  <!-- Grid -->
-  <div class="grid" id="grid"></div>
+  <!-- Grid – fixní čtvercová oblast, dlaždice se škálují uvnitř -->
+  <div class="grid-area" id="grid-area">
+    <div class="grid" id="grid"></div>
+  </div>
 
   <!-- Stash -->
   <div class="panel stash-wrap" style="margin-top:14px;">
@@ -911,7 +924,18 @@ function renderLevelStepper() {
 
 function renderGrid() {
   const g = $("grid");
-  g.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+  // Vypočti velikost dlaždice tak, aby čtvercové cely fitly do pevné oblasti.
+  const area = g.parentElement;
+  const areaW = area.clientWidth  || 360;
+  const areaH = area.clientHeight || 360;
+  const gap = 8;
+  const cellSize = Math.floor(Math.min(
+    (areaW - gap * (cols - 1)) / cols,
+    (areaH - gap * (rows - 1)) / rows
+  ));
+  g.style.gridTemplateColumns = `repeat(${cols}, ${cellSize}px)`;
+  g.style.gridAutoRows = `${cellSize}px`;
+  g.style.gap = `${gap}px`;
   g.innerHTML = "";
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
@@ -1009,6 +1033,13 @@ $("btn-next").addEventListener("click", () => {
 
 loadLevel(0);
 startTimerLoop();
+
+// Při resize/otočení překresli grid – dlaždice se přepočítají na novou šířku oblasti.
+let resizeRaf = null;
+window.addEventListener("resize", () => {
+  if (resizeRaf) cancelAnimationFrame(resizeRaf);
+  resizeRaf = requestAnimationFrame(() => renderGrid());
+});
 </script>
 </body>
 </html>
