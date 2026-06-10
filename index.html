@@ -39,12 +39,36 @@
     max-width: 360px;
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-end;
     margin-bottom: 12px;
   }
-  header h1 { font-size: 20px; margin: 0; letter-spacing: .3px; flex: 1; }
   header .header-right { display: flex; align-items: center; gap: 10px; }
-  header .level { font-size: 13px; color: #777; }
+
+  /* Stepper: [− 4 +] – kompaktní přepínač levelů */
+  .level-stepper {
+    display: flex; align-items: center;
+    background: #e3ddd0;
+    border-radius: 22px;
+    padding: 2px;
+    gap: 0;
+  }
+  .level-stepper button {
+    width: 26px; height: 26px;
+    border: none; background: transparent;
+    font-size: 18px; font-weight: 800; line-height: 1;
+    color: #555; cursor: pointer;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    padding: 0;
+    transition: background-color .15s, opacity .15s;
+  }
+  .level-stepper button:hover:not(:disabled) { background: rgba(0,0,0,.08); }
+  .level-stepper button:disabled { opacity: .3; cursor: not-allowed; }
+  .level-stepper .level-num {
+    min-width: 26px; padding: 0 4px;
+    font-size: 14px; font-weight: 800; color: #2b2b2b;
+    text-align: center; line-height: 1;
+  }
   .btn-icon {
     width: 30px; height: 30px; border-radius: 50%;
     background: #e3ddd0; color: #555; border: none;
@@ -235,13 +259,7 @@
   .order-card .card-ings { display: flex; gap: 3px; }
   .order-card .mini { width: 18px; height: 18px; font-size: 11px; border-radius: 6px; border-width: 2px; }
 
-  /* přepínač levelů */
-  .level-switch { display: flex; gap: 6px; width: 100%; max-width: 360px; margin: 0 auto 12px; }
-  .level-switch button {
-    flex: 1; padding: 8px 6px; border-radius: 20px;
-    background: #e3ddd0; color: #555; font-size: 13px; font-weight: 700;
-  }
-  .level-switch button.active { background: var(--ink); color: #fff; }
+  /* (starý řádek level tlačítek nahrazen kompaktním .level-stepper v hlavičce) */
 
   .mini {
     width: 26px; height: 26px; border-radius: 7px;
@@ -373,15 +391,15 @@
 </head>
 <body>
   <header>
-    <h1>🍣 Sushi Merge Bar</h1>
     <div class="header-right">
-      <span class="level" id="level-label"></span>
+      <div class="level-stepper" id="level-stepper">
+        <button id="btn-level-prev" aria-label="Předchozí level">−</button>
+        <span class="level-num" id="level-num">1</span>
+        <button id="btn-level-next" aria-label="Další level">+</button>
+      </div>
       <button class="btn-icon" id="btn-reset" title="Reset levelu" aria-label="Reset levelu">↻</button>
     </div>
   </header>
-
-  <!-- Přepínač levelů -->
-  <div class="level-switch" id="level-switch"></div>
 
   <!-- Objednávkové lístečky – „na liště" v kuchyni, bez kontejneru -->
   <div class="orders-wrap">
@@ -676,8 +694,7 @@ function loadLevel(idx) {
   }
   stash = [];
   recipes = lvl.recipes.map(r => ({ name: r.name, items: r.items.slice(), done: false }));
-  $("level-label").textContent = `${idx + 1} / ${LEVELS.length}`;
-  renderLevelSwitch();
+  renderLevelStepper();
   hideOverlays();
   render();
 }
@@ -886,16 +903,10 @@ function updateScoreDisplay() {
   el.textContent = String(score);
 }
 
-function renderLevelSwitch() {
-  const el = $("level-switch");
-  el.innerHTML = "";
-  LEVELS.forEach((lvl, i) => {
-    const b = document.createElement("button");
-    b.textContent = `Level ${i + 1}`;
-    if (i === levelIndex) b.classList.add("active");
-    b.addEventListener("click", () => { levelIndex = i; loadLevel(i); });
-    el.appendChild(b);
-  });
+function renderLevelStepper() {
+  $("level-num").textContent = String(levelIndex + 1);
+  $("btn-level-prev").disabled = levelIndex === 0;
+  $("btn-level-next").disabled = levelIndex === LEVELS.length - 1;
 }
 
 function renderGrid() {
@@ -984,6 +995,12 @@ function hideOverlays() {
 
 // ---- Init ----
 $("btn-reset").addEventListener("click", () => loadLevel(levelIndex));
+$("btn-level-prev").addEventListener("click", () => {
+  if (levelIndex > 0) { levelIndex--; loadLevel(levelIndex); }
+});
+$("btn-level-next").addEventListener("click", () => {
+  if (levelIndex < LEVELS.length - 1) { levelIndex++; loadLevel(levelIndex); }
+});
 $("btn-restart").addEventListener("click", () => loadLevel(levelIndex));
 $("btn-next").addEventListener("click", () => {
   levelIndex = (levelIndex + 1) % LEVELS.length;
