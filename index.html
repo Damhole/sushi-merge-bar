@@ -70,6 +70,87 @@
   }
   @keyframes cardIn { from { opacity: 0; transform: translateX(22px); } to { opacity: 1; transform: none; } }
   .order-card.active { border-color: var(--gold); background: #fffdf2; box-shadow: 0 0 0 3px rgba(255,215,0,.15); }
+
+  /* Timed card – vyšší, se smajlíkem a barem nahoře */
+  .order-card.timed {
+    width: 78px;
+    padding: 0;
+    overflow: hidden;
+  }
+  .order-card.timed .card-head {
+    display: flex; align-items: center; gap: 5px;
+    padding: 6px 6px 4px;
+    width: 100%; box-sizing: border-box;
+  }
+  .order-card.timed .smiley {
+    width: 20px; height: 20px; border-radius: 50%;
+    background: #4CAF50;
+    position: relative; flex-shrink: 0;
+    transition: background-color .3s;
+  }
+  /* Two eyes */
+  .order-card.timed .smiley::before,
+  .order-card.timed .smiley::after {
+    content: ''; position: absolute;
+    top: 6px;
+    width: 3px; height: 3px; border-radius: 50%;
+    background: #fff;
+  }
+  .order-card.timed .smiley::before { left: 5px; }
+  .order-card.timed .smiley::after  { right: 5px; }
+  /* Mouth */
+  .order-card.timed .smiley .mouth {
+    position: absolute; bottom: 4px; left: 50%;
+    transform: translateX(-50%);
+    width: 9px; height: 5px;
+    border-bottom: 2px solid #fff;
+    border-radius: 0 0 50% 50%;
+  }
+  .order-card.timed .smiley.neutral .mouth {
+    height: 0; bottom: 7px; width: 8px;
+    border-bottom-width: 2px; border-radius: 0;
+  }
+  .order-card.timed .smiley.sad .mouth {
+    bottom: 4px;
+    border-bottom: none;
+    border-top: 2px solid #fff;
+    border-radius: 50% 50% 0 0;
+  }
+  .order-card.timed .timebar {
+    flex: 1; height: 6px; border-radius: 3px;
+    background: rgba(0,0,0,.1); overflow: hidden;
+  }
+  .order-card.timed .timebar-fill {
+    height: 100%; background: #4CAF50;
+    border-radius: 3px;
+    transition: background-color .3s;
+  }
+  .order-card.timed .card-body {
+    display: flex; flex-direction: column;
+    align-items: center; gap: 8px;
+    padding: 4px 6px 10px;
+  }
+
+  /* Skóre v hlavičce panelu */
+  .task-title { display: flex; justify-content: space-between; align-items: center; }
+  .score-badge {
+    color: var(--gold); font-size: 12px; font-weight: 800;
+    letter-spacing: 0; display: none;
+  }
+  .score-badge.show { display: inline; }
+  /* +N body letící text při mergi */
+  .points-pop {
+    position: absolute; pointer-events: none;
+    font-weight: 900; font-size: 16px; color: var(--gold);
+    text-shadow: 0 2px 4px rgba(0,0,0,.25);
+    animation: pointsFloat 1.2s ease-out forwards;
+    z-index: 5;
+  }
+  @keyframes pointsFloat {
+    0%   { opacity: 0; transform: translateY(0) scale(.8); }
+    20%  { opacity: 1; transform: translateY(-8px) scale(1.15); }
+    100% { opacity: 0; transform: translateY(-32px) scale(1); }
+  }
   .order-card.more {
     background: #efe9dd; border-style: dashed; border-color: #d8cfbe;
     justify-content: center; min-height: 56px;
@@ -269,6 +350,11 @@
 const STASH_SIZE = 7;
 const VISIBLE_ORDERS = 4; // hráč vidí jen 4 objednávky a může plnit jen je
 
+// Timer / scoring (jen pro „timed" levely)
+const ORDER_DURATION = 30000; // 30 sekund od vstupu do viditelné fronty
+const PHASE_GREEN_END = 0.40; // 0–12s: zelená, 100 bodů
+const PHASE_YELLOW_END = 0.75; // 12–22.5s: oranžová, 60 bodů; po 22.5s: červená, 20 bodů
+
 const TYPES = {
   salmon:   { label: "L", icon: "🐟", cls: "t-salmon"   },
   rice:     { label: "R", icon: "🍚", cls: "t-rice"     },
@@ -389,21 +475,108 @@ const LEVELS = [
       { recipe: URAMAKI, count: 4 },
     ], 13),
   },
+  {
+    // Timed level – každá viditelná objednávka má 30s. Zelená 100b, žlutá 60b, červená 20b.
+    // Mřížka 6×5 = 30 surovin, 9 objednávek (3 každého pokrmu), žádné mystery, ať se hráč soustředí na čas.
+    name: "Level 6 — Rush Hour",
+    timed: true,
+    map: [
+      "ŘZŘZŘZ",
+      "TATATA",
+      "KCKCKC",
+      "LRLRLR",
+      "RRRRRR",
+    ],
+    recipes: shuffledOrders([
+      { recipe: MAKI,    count: 3 },
+      { recipe: NIGIRI,  count: 3 },
+      { recipe: URAMAKI, count: 3 },
+    ], 21),
+  },
 ];
 
 // ---- Stav ----
 let levelIndex = 0;
 let grid;        // Map "col,row" -> {type, col, row}
 let stash;       // pole instancí {type, origin:{col,row}}
-let recipes;     // pole {name, items, done}
+let recipes;     // pole {name, items, done, spawnedAt?}
 let cols, rows;
 let ordersSig = null; // podpis fronty objednávek – karty se překreslí jen při změně
+let score = 0;
+let rafId = null;
+
+function isTimedLevel() {
+  return !!(LEVELS[levelIndex] && LEVELS[levelIndex].timed);
+}
+
+// Vrátí fázi podle uplynulého času od spawnu objednávky.
+function phaseFromElapsed(elapsed) {
+  const r = Math.min(1, Math.max(0, elapsed / ORDER_DURATION));
+  if (r < PHASE_GREEN_END)       return { phase: "green",  pts: 100, color: "#43A047", smileyCls: "",        fillPct: (1 - r) * 100 };
+  if (r < PHASE_YELLOW_END)      return { phase: "yellow", pts: 60,  color: "#FB8C00", smileyCls: "neutral", fillPct: (1 - r) * 100 };
+  return                                { phase: "red",    pts: 20,  color: "#E53935", smileyCls: "sad",     fillPct: (1 - r) * 100 };
+}
+
+function getOrderPoints(idx) {
+  if (!isTimedLevel()) return 100;
+  const r = recipes[idx];
+  if (!r || !r.spawnedAt) return 100;
+  return phaseFromElapsed(Date.now() - r.spawnedAt).pts;
+}
+
+function startTimerLoop() {
+  if (rafId) cancelAnimationFrame(rafId);
+  const tick = () => {
+    if (isTimedLevel()) tickOrders();
+    rafId = requestAnimationFrame(tick);
+  };
+  rafId = requestAnimationFrame(tick);
+}
+
+function tickOrders() {
+  if (!recipes) return;
+  const now = Date.now();
+  document.querySelectorAll('.order-card.timed[data-recipe-idx]').forEach(card => {
+    const idx = +card.dataset.recipeIdx;
+    const r = recipes[idx];
+    if (!r || r.done) return;
+    if (!r.spawnedAt) r.spawnedAt = now;
+    const p = phaseFromElapsed(now - r.spawnedAt);
+    const fill = card.querySelector('.timebar-fill');
+    const smiley = card.querySelector('.smiley');
+    if (fill) {
+      fill.style.width = p.fillPct + "%";
+      fill.style.background = p.color;
+    }
+    if (smiley) {
+      smiley.className = "smiley" + (p.smileyCls ? " " + p.smileyCls : "");
+      smiley.style.background = p.color;
+    }
+  });
+}
+
+function flyPoints(idx, pts) {
+  const card = document.querySelector(`.order-card[data-recipe-idx="${idx}"]`);
+  const wrap = document.getElementById("recipes");
+  if (!card || !wrap) return;
+  const r = card.getBoundingClientRect();
+  const wr = wrap.getBoundingClientRect();
+  const pop = document.createElement("div");
+  pop.className = "points-pop";
+  pop.textContent = `+${pts}`;
+  pop.style.left = (r.left - wr.left + r.width / 2 - 12) + "px";
+  pop.style.top = (r.top - wr.top + 8) + "px";
+  wrap.style.position = "relative";
+  wrap.appendChild(pop);
+  setTimeout(() => pop.remove(), 1200);
+}
 
 const $ = (id) => document.getElementById(id);
 
 function loadLevel(idx) {
   const lvl = LEVELS[idx];
   ordersSig = null; // vynuť překreslení objednávek při načtení levelu
+  score = 0;
   grid = new Map();
   if (lvl.map) {
     rows = lvl.map.length;
@@ -509,6 +682,9 @@ function tryMerge() {
     if (hitIdx === -1) break;
     animateMerge(hitMatch);
     hitMatch.sort((a, b) => b - a).forEach(i => stash.splice(i, 1));
+    const pts = getOrderPoints(hitIdx);
+    score += pts;
+    if (isTimedLevel()) flyPoints(hitIdx, pts);
     recipes[hitIdx].done = true;
     merged = true;
   }
@@ -536,9 +712,13 @@ function checkWin() {
   const gridEmpty = grid.size === 0;
   if (queueEmpty && gridEmpty) {
     setTimeout(() => {
-      $("win-msg").textContent = (levelIndex < LEVELS.length - 1)
+      const maxScore = recipes.length * 100;
+      const scoreLine = isTimedLevel()
+        ? `Skóre: ${score} / ${maxScore}` : "";
+      const baseMsg = (levelIndex < LEVELS.length - 1)
         ? "Všechny objednávky hotové."
         : "Dokončil jsi všechny levely. 🍱";
+      $("win-msg").innerHTML = baseMsg + (scoreLine ? `<br><strong style="color:#FFD700">${scoreLine}</strong>` : "");
       $("btn-next").textContent = (levelIndex < LEVELS.length - 1) ? "Další level" : "Hrát znovu";
       $("overlay-win").classList.add("show");
     }, 300);
@@ -569,30 +749,66 @@ function renderRecipes() {
   const done = recipes.filter(r => r.done).length;
   // Karty se překreslí (a přijedou zprava) jen když se fronta opravdu změní:
   // jiné indexy viditelných objednávek nebo jiný počet hotovo/celkem.
-  const sig = `${done}/${recipes.length}|${visibleRecipeIndices().join(",")}`;
-  if (sig === ordersSig) return;
+  const sig = `${done}/${recipes.length}|${visibleRecipeIndices().join(",")}|${isTimedLevel()?1:0}`;
+  if (sig === ordersSig) {
+    // Skóre přepisuj i tak (mění se mezi překresleními).
+    updateScoreBadge();
+    return;
+  }
   ordersSig = sig;
 
   const wrap = $("recipes");
   wrap.innerHTML = "";
-  const pending = recipes.filter(r => !r.done);
-  $("task-title").textContent = `Objednávky — ${done}/${recipes.length} hotovo`;
+  // task-title: vlevo text, vpravo badge skóre (jen timed level)
+  $("task-title").innerHTML =
+    `<span>Objednávky — ${done}/${recipes.length} hotovo</span>` +
+    `<span class="score-badge${isTimedLevel() ? " show" : ""}" id="score-badge"></span>`;
+  updateScoreBadge();
 
-  if (pending.length === 0) {
+  const pendingPairs = recipes
+    .map((r, i) => ({ r, i }))
+    .filter(x => !x.r.done);
+
+  if (pendingPairs.length === 0) {
     wrap.innerHTML = `<span style="color:#888;font-size:13px;padding:6px;">Všechny objednávky hotové 🎉</span>`;
     return;
   }
-  // Overcooked styl: karty vedle sebe; první (vlevo) = aktivní objednávka.
-  // Zobrazujeme jen prvních VISIBLE_ORDERS – další jsou „v kuchyni" a hráč
-  // se k nim dostane teprve uvolněním slotu (splněním viditelné).
-  pending.slice(0, VISIBLE_ORDERS).forEach((r, i) => {
-    const card = document.createElement("div");
-    card.className = "order-card" + (i === 0 ? " active" : "");
+
+  const now = Date.now();
+  pendingPairs.slice(0, VISIBLE_ORDERS).forEach(({ r, i: idx }, pos) => {
     const ings = r.items.map(t =>
       `<div class="mini ${TYPES[t].cls}">${TYPES[t].icon}</div>`).join("");
-    card.innerHTML = `<span class="card-name">${r.name}</span><span class="card-ings">${ings}</span>`;
+    const card = document.createElement("div");
+    card.className = "order-card" + (pos === 0 ? " active" : "") + (isTimedLevel() ? " timed" : "");
+    card.dataset.recipeIdx = idx;
+
+    if (isTimedLevel()) {
+      if (!r.spawnedAt) r.spawnedAt = now;
+      const p = phaseFromElapsed(now - r.spawnedAt);
+      card.innerHTML = `
+        <div class="card-head">
+          <div class="smiley${p.smileyCls ? " " + p.smileyCls : ""}" style="background:${p.color};">
+            <span class="mouth"></span>
+          </div>
+          <div class="timebar">
+            <div class="timebar-fill" style="width:${p.fillPct}%; background:${p.color};"></div>
+          </div>
+        </div>
+        <div class="card-body">
+          <span class="card-name">${r.name}</span>
+          <span class="card-ings">${ings}</span>
+        </div>`;
+    } else {
+      card.innerHTML = `<span class="card-name">${r.name}</span><span class="card-ings">${ings}</span>`;
+    }
     wrap.appendChild(card);
   });
+}
+
+function updateScoreBadge() {
+  const el = document.getElementById("score-badge");
+  if (!el) return;
+  el.textContent = isTimedLevel() ? `🏆 ${score}` : "";
 }
 
 function renderLevelSwitch() {
@@ -701,6 +917,7 @@ $("btn-next").addEventListener("click", () => {
 });
 
 loadLevel(0);
+startTimerLoop();
 </script>
 </body>
 </html>

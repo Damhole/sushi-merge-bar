@@ -22,6 +22,7 @@ Hratelný prototyp 2D merge hry — vybíráš suroviny z mřížky, skládáš 
 | 3 | Blocker mechanika — kopat se odshora dolů |
 | 4 | Combo Bar — 2 pokrmy (Maki + Nigiri), 6 typů surovin, 10 objednávek v náhodném pořadí, mystery boxy |
 | 5 | Triple Threat — 3 pokrmy (přibyl Uramaki = rýže + okurka + krab, sdílí rýži s Maki), 8 typů surovin, 6×6 mřížka, 12 objednávek |
+| 6 | Rush Hour — časový tlak. Každá viditelná objednávka má 30s: zelená 0–12s = 100b, oranžová 12–22.5s = 60b, červená 22.5s+ = 20b. Smajlík + bar nad kartou. Celkové skóre. |
 
 ## Spustit lokálně
 
