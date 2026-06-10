@@ -480,16 +480,18 @@ const LEVELS = [
     // Mřížka 6×5 = 30 surovin, 9 objednávek (3 každého pokrmu), žádné mystery, ať se hráč soustředí na čas.
     name: "Level 6 — Rush Hour",
     timed: true,
+    // 30 surovin = přesně 10 objednávek (3 Maki + 4 Nigiri + 3 Uramaki).
+    // Spodní řada má T/A/Z (na okamžitý start Nigiri) + 3 rýže (pro Maki/Uramaki).
     map: [
       "ŘZŘZŘZ",
       "TATATA",
       "KCKCKC",
       "LRLRLR",
-      "RRRRRR",
+      "TAZRRR",
     ],
     recipes: shuffledOrders([
       { recipe: MAKI,    count: 3 },
-      { recipe: NIGIRI,  count: 3 },
+      { recipe: NIGIRI,  count: 4 },
       { recipe: URAMAKI, count: 3 },
     ], 21),
   },
