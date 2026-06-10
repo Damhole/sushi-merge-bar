@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Sushi Merge Bar — prototyp</title>
+<style>
+  :root {
+    --cell: 80px;
+    --gap: 8px;
+    --salmon: #FF6B6B;
+    --rice: #F5F0E8;
+    --seaweed: #4A7C59;
+    --gold: #FFD700;
+    --ok: #34C759;
+    --bad: #FF9500;
+    --ink: #2b2b2b;
+    --panel: #ffffff;
+    --bg: #f3efe7;
+  }
+
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+    padding: 16px;
+    user-select: none;
+  }
+
+  header {
+    width: 100%;
+    max-width: 360px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  header h1 { font-size: 20px; margin: 0; letter-spacing: .3px; }
+  header .level { font-size: 13px; color: #777; }
+
+  .panel {
+    background: var(--panel);
+    border-radius: 16px;
+    padding: 14px;
+    width: 100%;
+    max-width: 360px;
+    box-shadow: 0 2px 10px rgba(0,0,0,.06);
+    margin-bottom: 14px;
+  }
+
+  /* ---- Recipe / task panel ---- */
+  .task-title { font-size: 13px; font-weight: 600; color: #888; margin-bottom: 8px; text-transform: uppercase; letter-spacing: .5px; }
+  /* Overcooked styl: malé karty objednávek vedle sebe (horizontálně).
+     Zobrazujeme jen prvních 4 čekajících – ostatní jsou skryté,
+     vyřešit lze pouze ty viditelné. */
+  .recipes { display: flex; flex-direction: row; gap: 8px; overflow: hidden; padding-bottom: 4px; }
+  .order-card {
+    flex: 0 0 auto; width: 74px;
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+    padding: 8px 6px; border-radius: 12px; background: #faf7f1;
+    border: 2px solid transparent; transition: .25s;
+    animation: cardIn .3s ease-out;
+  }
+  @keyframes cardIn { from { opacity: 0; transform: translateX(22px); } to { opacity: 1; transform: none; } }
+  .order-card.active { border-color: var(--gold); background: #fffdf2; box-shadow: 0 0 0 3px rgba(255,215,0,.15); }
+  .order-card.more {
+    background: #efe9dd; border-style: dashed; border-color: #d8cfbe;
+    justify-content: center; min-height: 56px;
+  }
+  .order-card.more .card-name { font-size: 16px; color: #888; }
+  .order-card .card-name { font-size: 10px; font-weight: 700; color: #999; white-space: nowrap; }
+  .order-card .card-ings { display: flex; gap: 3px; }
+  .order-card .mini { width: 18px; height: 18px; font-size: 11px; border-radius: 6px; border-width: 2px; }
+
+  /* přepínač levelů */
+  .level-switch { display: flex; gap: 6px; width: 100%; max-width: 360px; margin: 0 auto 12px; }
+  .level-switch button {
+    flex: 1; padding: 8px 6px; border-radius: 20px;
+    background: #e3ddd0; color: #555; font-size: 13px; font-weight: 700;
+  }
+  .level-switch button.active { background: var(--ink); color: #fff; }
+
+  .mini {
+    width: 26px; height: 26px; border-radius: 7px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; border: 2px solid rgba(0,0,0,.12);
+  }
+
+  /* ---- Grid ---- */
+  .grid {
+    display: grid; gap: var(--gap);
+    width: 100%; max-width: 360px; margin: 0 auto;
+  }
+  .cell {
+    aspect-ratio: 1; width: 100%;
+    border-radius: 14px;
+    background: #ece6da;
+    display: flex; align-items: center; justify-content: center;
+    transition: transform .12s, box-shadow .12s;
+  }
+  .ingredient {
+    position: relative;
+    width: 100%; height: 100%;
+    border-radius: 14px;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    font-size: clamp(18px, 6.5vw, 30px); cursor: pointer;
+    border: 3px solid rgba(0,0,0,.12);
+    box-shadow: 0 2px 5px rgba(0,0,0,.12);
+    transition: transform .1s, filter .15s;
+  }
+  .ingredient:active { transform: scale(.92); }
+  .ingredient.locked {
+    filter: grayscale(1) brightness(.72);
+    opacity: .7; cursor: not-allowed;
+    box-shadow: inset 0 0 0 100px rgba(0,0,0,.12);
+  }
+  .ingredient.locked:active { transform: none; }
+  .ingredient.mystery {
+    background: repeating-linear-gradient(45deg, #c8c0ae 0 6px, #b9b09b 6px 12px);
+    color: #fff;
+    cursor: not-allowed;
+    border-color: rgba(0,0,0,.18);
+  }
+  .ingredient.mystery .qmark {
+    font-size: clamp(26px, 9vw, 38px);
+    font-weight: 900;
+    color: #fff;
+    text-shadow: 0 2px 4px rgba(0,0,0,.25);
+  }
+  .ingredient.reveal { animation: revealPop .4s ease-out; }
+  @keyframes revealPop {
+    0% { transform: scale(.85) rotate(-4deg); }
+    50% { transform: scale(1.1) rotate(2deg); }
+    100% { transform: scale(1) rotate(0); }
+  }
+  .ingredient .lbl { display: none; }
+
+  .t-salmon  { background: var(--salmon); }
+  .t-rice    { background: var(--rice); border-color: #ccc; }
+  .t-seaweed { background: var(--seaweed); color: #fff; }
+  .t-seaweed .lbl { color: #fff; opacity: .8; }
+  .t-tuna    { background: #C0392B; color: #fff; }
+  .t-tuna .lbl { color: #fff; opacity: .85; }
+  .t-avocado { background: #9CCC65; }
+  .t-ginger  { background: #F4B860; }
+
+  /* ---- Stash ---- */
+  .stash-wrap { display: flex; flex-direction: column; align-items: center; }
+  .stash-label { font-size: 12px; color: #888; margin-bottom: 6px; align-self: flex-start; }
+  .stash {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 6px;
+    width: 100%;
+  }
+  .slot {
+    aspect-ratio: 1;
+    border-radius: 12px;
+    background: #efe9dd;
+    border: 2px dashed #d8cfbe;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px;
+  }
+  .slot .ingredient { border-width: 2px; font-size: 22px; box-shadow: none; }
+  .slot .ingredient .lbl { display: none; }
+  .stash.flash-bad { animation: shake .4s; }
+  .stash.flash-bad .slot { border-color: var(--bad); }
+  @keyframes shake {
+    0%,100%{transform:translateX(0)} 20%{transform:translateX(-6px)}
+    40%{transform:translateX(6px)} 60%{transform:translateX(-4px)} 80%{transform:translateX(4px)}
+  }
+  .merge-pop { animation: pop .35s; }
+  @keyframes pop { 0%{transform:scale(1)} 50%{transform:scale(1.25)} 100%{transform:scale(0)} }
+
+  /* ---- Buttons ---- */
+  .buttons { display: flex; gap: 10px; margin-top: 16px; width: 100%; max-width: 360px; }
+  button {
+    flex: 1; padding: 13px; border: none; border-radius: 12px;
+    font-size: 15px; font-weight: 700; cursor: pointer; transition: .15s;
+  }
+  button:active { transform: scale(.97); }
+  .btn-submit { background: var(--ink); color: #fff; }
+  .btn-reset  { background: #e3ddd0; color: #555; }
+
+  /* ---- Overlays ---- */
+  .overlay {
+    position: fixed; inset: 0; display: none;
+    align-items: center; justify-content: center; flex-direction: column;
+    color: #fff; text-align: center; padding: 24px; z-index: 10;
+  }
+  .overlay.show { display: flex; animation: fade .3s; }
+  @keyframes fade { from{opacity:0} to{opacity:1} }
+  .overlay h2 { font-size: 34px; margin: 0 0 8px; }
+  .overlay p { font-size: 16px; margin: 0 0 24px; opacity: .95; }
+  .overlay button { flex: 0 0 auto; width: 240px; max-width: 80%; background: rgba(255,255,255,.95); color: var(--ink); }
+  #overlay-win { background: rgba(52,199,89,.96); }
+  #overlay-over { background: rgba(255,149,0,.96); }
+
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: var(--bad); color: #fff; padding: 10px 18px; border-radius: 20px;
+    font-size: 14px; font-weight: 600; opacity: 0; pointer-events: none; transition: .25s; z-index: 20;
+  }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+  <header>
+    <h1>🍣 Sushi Merge Bar</h1>
+    <span class="level" id="level-label"></span>
+  </header>
+
+  <!-- Přepínač levelů -->
+  <div class="level-switch" id="level-switch"></div>
+
+  <!-- Task / recipe panel -->
+  <div class="panel">
+    <div class="task-title" id="task-title">Objednávky</div>
+    <div class="recipes" id="recipes"></div>
+  </div>
+
+  <!-- Grid -->
+  <div class="grid" id="grid"></div>
+
+  <!-- Stash -->
+  <div class="panel stash-wrap" style="margin-top:14px;">
+    <div class="stash-label" id="stash-label">Pult (zásobník)</div>
+    <div class="stash" id="stash"></div>
+  </div>
+
+  <div class="buttons">
+    <button class="btn-submit" id="btn-submit">Submit</button>
+    <button class="btn-reset"  id="btn-reset">Reset</button>
+  </div>
+
+  <!-- Overlays -->
+  <div class="overlay" id="overlay-win">
+    <h2>Level splněn! 🎉</h2>
+    <p id="win-msg"></p>
+    <button id="btn-next">Další level</button>
+  </div>
+  <div class="overlay" id="overlay-over">
+    <h2>Game Over</h2>
+    <p>Pult je plný a nejde sestavit žádný recept.</p>
+    <button id="btn-restart">Reset</button>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+<script>
+/* =========================================================================
+   Sushi Merge Bar — MVP prototyp
+   - click-to-send ovládání
+   - zásobník 7 slotů, auto-merge libovolných 3 surovin dle aktivního receptu
+   - barvy ze specifikace
+   ========================================================================= */
+
+const STASH_SIZE = 7;
+const VISIBLE_ORDERS = 4; // hráč vidí jen 4 objednávky a může plnit jen je
+
+const TYPES = {
+  salmon:  { label: "L", icon: "🐟", cls: "t-salmon"  },
+  rice:    { label: "R", icon: "🍚", cls: "t-rice"    },
+  seaweed: { label: "Ř", icon: "🌿", cls: "t-seaweed" },
+  tuna:    { label: "T", icon: "🐠", cls: "t-tuna"    },
+  avocado: { label: "A", icon: "🥑", cls: "t-avocado" },
+  ginger:  { label: "Z", icon: "🫚", cls: "t-ginger"  },
+};
+
+// Pomocníci pro definici levelů
+const MAKI   = { name: "Maki",   items: ["salmon", "rice", "seaweed"] };
+const NIGIRI = { name: "Nigiri", items: ["tuna",   "avocado", "ginger"] };
+function makiOrders(n) {
+  return Array.from({ length: n }, () => ({ name: MAKI.name, items: MAKI.items.slice() }));
+}
+// Promíchá m Maki a n Nigiri pomocí seedovaného PRNG (Mulberry32).
+// Stejný seed = stejné pořadí pokaždé – testovatelně dohratelné.
+function shuffledMixed(m, n, seed) {
+  const arr = [];
+  for (let i = 0; i < m; i++) arr.push({ name: MAKI.name,   items: MAKI.items.slice()   });
+  for (let i = 0; i < n; i++) arr.push({ name: NIGIRI.name, items: NIGIRI.items.slice() });
+  let s = seed >>> 0;
+  const rnd = () => {
+    s = (s + 0x6D2B79F5) >>> 0;
+    let t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(rnd() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+const CHAR_TO_TYPE = {
+  L: "salmon", R: "rice", "Ř": "seaweed",
+  T: "tuna",   A: "avocado", Z: "ginger",
+};
+
+// Level definice (chovají se jako "JSON levelu")
+const LEVELS = [
+  {
+    name: "Level 1 — Maki Sushi",
+    cols: 4, rows: 4,
+    ingredients: [
+      { type: "salmon",  col: 0, row: 1 },
+      { type: "rice",    col: 1, row: 1 },
+      { type: "seaweed", col: 2, row: 1 },
+    ],
+    recipes: [
+      { name: "Maki", items: ["salmon", "rice", "seaweed"] },
+    ],
+  },
+  {
+    name: "Level 2 — 2× Maki Sushi",
+    cols: 4, rows: 4,
+    ingredients: [
+      { type: "salmon",  col: 0, row: 0 }, { type: "rice", col: 2, row: 0 }, { type: "seaweed", col: 3, row: 1 },
+      { type: "seaweed", col: 0, row: 3 }, { type: "rice", col: 1, row: 2 }, { type: "salmon",  col: 3, row: 3 },
+    ],
+    recipes: [
+      { name: "Maki", items: ["salmon", "rice", "seaweed"] },
+      { name: "Maki", items: ["salmon", "rice", "seaweed"] },
+    ],
+  },
+  {
+    // Plná mřížka 6×4 = 24 surovin = 8 objednávek.
+    // Aktivní je jen vnější linie (má volnou stranu), vnitřek je zamčený.
+    name: "Level 3 — Sushi Rush",
+    map: [
+      "ŘŘŘŘŘŘ",
+      "ŘŘLLLL",
+      "RRRRLL",
+      "RRRRLL",
+    ],
+    recipes: makiOrders(8),
+  },
+  {
+    // 6×5 = 30 surovin. Dva pokrmy (Maki + Nigiri) prolínané v clusterech.
+    // Hráč musí žonglovat mezi 6 typy surovin a 10 objednávkami.
+    name: "Level 4 — Combo Bar",
+    // Malá písmena = mystery box (?), odhalí se až bude políčko přístupné.
+    map: [
+      "ŘŘŘZZZ",
+      "Řřtzzt",
+      "AATtLL",
+      "AAtRlL",
+      "ARRRLR",
+    ],
+    recipes: shuffledMixed(5, 5, 7),
+  },
+];
+
+// ---- Stav ----
+let levelIndex = 0;
+let grid;        // Map "col,row" -> {type, col, row}
+let stash;       // pole instancí {type, origin:{col,row}}
+let recipes;     // pole {name, items, done}
+let cols, rows;
+let ordersSig = null; // podpis fronty objednávek – karty se překreslí jen při změně
+
+const $ = (id) => document.getElementById(id);
+
+function loadLevel(idx) {
+  const lvl = LEVELS[idx];
+  ordersSig = null; // vynuť překreslení objednávek při načtení levelu
+  grid = new Map();
+  if (lvl.map) {
+    rows = lvl.map.length;
+    cols = [...lvl.map[0]].length;
+    lvl.map.forEach((line, r) => {
+      [...line].forEach((ch, c) => {
+        if (ch === '.' || ch === ' ') return;
+        // Malé písmeno = skrytá surovina (mystery box). Velké = viditelná.
+        const upper = ch.toUpperCase();
+        const type = CHAR_TO_TYPE[upper];
+        if (!type) return;
+        const hidden = ch !== upper;
+        grid.set(key(c, r), { type, col: c, row: r, hidden });
+      });
+    });
+  } else {
+    cols = lvl.cols; rows = lvl.rows;
+    lvl.ingredients.forEach(ing => {
+      grid.set(key(ing.col, ing.row), { type: ing.type, col: ing.col, row: ing.row });
+    });
+  }
+  stash = [];
+  recipes = lvl.recipes.map(r => ({ name: r.name, items: r.items.slice(), done: false }));
+  $("level-label").textContent = `${idx + 1} / ${LEVELS.length}`;
+  renderLevelSwitch();
+  hideOverlays();
+  render();
+}
+
+const key = (c, r) => `${c},${r}`;
+
+function activeRecipeIndex() {
+  return recipes.findIndex(r => !r.done);
+}
+
+// Indexy aktuálně viditelných (= splnitelných) objednávek – prvních N čekajících.
+function visibleRecipeIndices() {
+  const out = [];
+  for (let i = 0; i < recipes.length && out.length < VISIBLE_ORDERS; i++) {
+    if (!recipes[i].done) out.push(i);
+  }
+  return out;
+}
+
+// Surovina je sebratelná, má-li vedle sebe aspoň jedno volné pole:
+// prázdné sousední pole v mřížce (nahoře / dole / vlevo / vpravo),
+// NEBO je ve spodní řadě (spodní okraj = výdej).
+// Levý, pravý a horní okraj jsou stěny → samotný okraj přístup nedává.
+function isActive(c, r) {
+  if (r === rows - 1) return true; // spodní okraj = výdej
+  const dirs = [[0, -1], [0, 1], [-1, 0], [1, 0]];
+  return dirs.some(([dc, dr]) => {
+    const nc = c + dc, nr = r + dr;
+    if (nc < 0 || nr < 0 || nc >= cols || nr >= rows) return false; // okraj = stěna
+    return !grid.has(key(nc, nr));
+  });
+}
+
+// ---- Akce hráče ----
+function sendToStash(c, r) {
+  const cell = grid.get(key(c, r));
+  if (!cell) return;
+  if (!isActive(c, r)) { toast("Zablokováno – odeber nejdřív sousední suroviny"); return; }
+  if (stash.length >= STASH_SIZE) { toast("Pult je plný"); return; }
+  grid.delete(key(c, r));
+  stash.push({ type: cell.type, origin: { col: c, row: r } });
+  render();
+  // auto-merge + následné kontroly
+  setTimeout(() => { tryMerge(); }, 120);
+}
+
+// Surovinu z pultu už nelze vrátit zpět do mřížky.
+// Co položíš na pult, tam zůstane dokud nezmizí mergem.
+
+// Najde v zásobníku indexy 3 surovin tvořících multiset receptu
+function findMatch(recipe) {
+  const need = {};
+  recipe.items.forEach(t => need[t] = (need[t] || 0) + 1);
+  const picked = [];
+  const remaining = { ...need };
+  for (let i = 0; i < stash.length; i++) {
+    const t = stash[i].type;
+    if (remaining[t] > 0) {
+      remaining[t]--;
+      picked.push(i);
+    }
+  }
+  const allFound = Object.values(remaining).every(v => v === 0);
+  return allFound ? picked : null;
+}
+
+function tryMerge() {
+  let merged = false;
+  let guard = 0;
+  while (guard++ < 20) {
+    // Hráč může splnit jen aktuálně viditelné objednávky (prvních VISIBLE_ORDERS).
+    // Pořadí preferuje dřívější, ale lze splnit kteroukoli viditelnou.
+    let hitIdx = -1, hitMatch = null;
+    for (const i of visibleRecipeIndices()) {
+      const m = findMatch(recipes[i]);
+      if (m) { hitIdx = i; hitMatch = m; break; }
+    }
+    if (hitIdx === -1) break;
+    animateMerge(hitMatch);
+    hitMatch.sort((a, b) => b - a).forEach(i => stash.splice(i, 1));
+    recipes[hitIdx].done = true;
+    merged = true;
+  }
+  if (merged) {
+    render();
+    flashStash("ok");
+    if (checkWin()) return;
+  }
+  checkGameOver();
+}
+
+// ---- Tlačítka ----
+function onSubmit() {
+  const anyMatch = visibleRecipeIndices().some(i => findMatch(recipes[i]));
+  if (anyMatch) {
+    tryMerge();
+  } else {
+    flashStash("bad");
+    toast("Žádná z viditelných objednávek nesedí");
+  }
+}
+
+function checkWin() {
+  const queueEmpty = recipes.every(r => r.done);
+  const gridEmpty = grid.size === 0;
+  if (queueEmpty && gridEmpty) {
+    setTimeout(() => {
+      $("win-msg").textContent = (levelIndex < LEVELS.length - 1)
+        ? "Všechny objednávky hotové."
+        : "Dokončil jsi všechny levely. 🍱";
+      $("btn-next").textContent = (levelIndex < LEVELS.length - 1) ? "Další level" : "Hrát znovu";
+      $("overlay-win").classList.add("show");
+    }, 300);
+    return true;
+  }
+  return false;
+}
+
+function checkGameOver() {
+  const gridHasIngredients = grid.size > 0;
+  const stashFull = stash.length >= STASH_SIZE;
+  const anyMatch = visibleRecipeIndices().some(i => findMatch(recipes[i]));
+  // Vracení už není možné. Game over = pult plný + žádná viditelná objednávka
+  // nelze splnit + v mřížce ještě jsou suroviny.
+  if (stashFull && gridHasIngredients && !anyMatch) {
+    $("overlay-over").classList.add("show");
+  }
+}
+
+// ---- Render ----
+function render() {
+  renderRecipes();
+  renderGrid();
+  renderStash();
+}
+
+function renderRecipes() {
+  const done = recipes.filter(r => r.done).length;
+  // Karty se překreslí (a přijedou zprava) jen když se fronta opravdu změní:
+  // jiné indexy viditelných objednávek nebo jiný počet hotovo/celkem.
+  const sig = `${done}/${recipes.length}|${visibleRecipeIndices().join(",")}`;
+  if (sig === ordersSig) return;
+  ordersSig = sig;
+
+  const wrap = $("recipes");
+  wrap.innerHTML = "";
+  const pending = recipes.filter(r => !r.done);
+  $("task-title").textContent = `Objednávky — ${done}/${recipes.length} hotovo`;
+
+  if (pending.length === 0) {
+    wrap.innerHTML = `<span style="color:#888;font-size:13px;padding:6px;">Všechny objednávky hotové 🎉</span>`;
+    return;
+  }
+  // Overcooked styl: karty vedle sebe; první (vlevo) = aktivní objednávka.
+  // Zobrazujeme jen prvních VISIBLE_ORDERS – další jsou „v kuchyni" a hráč
+  // se k nim dostane teprve uvolněním slotu (splněním viditelné).
+  pending.slice(0, VISIBLE_ORDERS).forEach((r, i) => {
+    const card = document.createElement("div");
+    card.className = "order-card" + (i === 0 ? " active" : "");
+    const ings = r.items.map(t =>
+      `<div class="mini ${TYPES[t].cls}">${TYPES[t].icon}</div>`).join("");
+    card.innerHTML = `<span class="card-name">${r.name}</span><span class="card-ings">${ings}</span>`;
+    wrap.appendChild(card);
+  });
+}
+
+function renderLevelSwitch() {
+  const el = $("level-switch");
+  el.innerHTML = "";
+  LEVELS.forEach((lvl, i) => {
+    const b = document.createElement("button");
+    b.textContent = `Level ${i + 1}`;
+    if (i === levelIndex) b.classList.add("active");
+    b.addEventListener("click", () => { levelIndex = i; loadLevel(i); });
+    el.appendChild(b);
+  });
+}
+
+function renderGrid() {
+  const g = $("grid");
+  g.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+  g.innerHTML = "";
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const cell = document.createElement("div");
+      cell.className = "cell";
+      const ing = grid.get(key(c, r));
+      if (ing) {
+        const active = isActive(c, r);
+        // Mystery box: jakmile se odemkne, surovina se odhalí (a zůstane odhalená).
+        const justRevealed = active && ing.hidden;
+        if (justRevealed) ing.hidden = false;
+        const onClick = active
+          ? () => sendToStash(c, r)
+          : () => toast(ing.hidden ? "Záhada – odhalí se až bude přístupná"
+                                   : "Zablokováno – odeber nejdřív sousední suroviny");
+        cell.appendChild(makeIngredient(ing.type, onClick, active, ing.hidden, justRevealed));
+      }
+      g.appendChild(cell);
+    }
+  }
+}
+
+function renderStash() {
+  const s = $("stash");
+  s.innerHTML = "";
+  $("stash-label").textContent = `Pult (zásobník) — ${stash.length}/${STASH_SIZE}`;
+  for (let i = 0; i < STASH_SIZE; i++) {
+    const slot = document.createElement("div");
+    slot.className = "slot";
+    if (stash[i]) {
+      // Surovinu v pultu nelze vrátit – klik nedělá nic.
+      const el = makeIngredient(stash[i].type, () => {});
+      el.style.cursor = "default";
+      slot.appendChild(el);
+    }
+    s.appendChild(slot);
+  }
+}
+
+function makeIngredient(type, onClick, active = true, hidden = false, justRevealed = false) {
+  const el = document.createElement("div");
+  if (hidden) {
+    el.className = "ingredient mystery";
+    el.innerHTML = `<span class="qmark">?</span>`;
+  } else {
+    const t = TYPES[type];
+    el.className = `ingredient ${t.cls}` + (active ? "" : " locked") + (justRevealed ? " reveal" : "");
+    el.innerHTML = `${t.icon}<span class="lbl">${t.label}</span>`;
+  }
+  el.addEventListener("click", onClick);
+  return el;
+}
+
+// ---- Feedback ----
+function flashStash(kind) {
+  const s = $("stash");
+  if (kind === "bad") {
+    s.classList.add("flash-bad");
+    setTimeout(() => s.classList.remove("flash-bad"), 400);
+  }
+}
+function animateMerge(indices) {
+  const slots = $("stash").children;
+  indices.forEach(i => {
+    const ing = slots[i] && slots[i].querySelector(".ingredient");
+    if (ing) ing.classList.add("merge-pop");
+  });
+}
+let toastTimer;
+function toast(msg) {
+  const t = $("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove("show"), 1600);
+}
+function hideOverlays() {
+  $("overlay-win").classList.remove("show");
+  $("overlay-over").classList.remove("show");
+}
+
+// ---- Init ----
+$("btn-submit").addEventListener("click", onSubmit);
+$("btn-reset").addEventListener("click", () => loadLevel(levelIndex));
+$("btn-restart").addEventListener("click", () => loadLevel(levelIndex));
+$("btn-next").addEventListener("click", () => {
+  levelIndex = (levelIndex + 1) % LEVELS.length;
+  loadLevel(levelIndex);
+});
+
+loadLevel(0);
+</script>
+</body>
+</html>
