@@ -151,6 +151,9 @@
   .t-tuna .lbl { color: #fff; opacity: .85; }
   .t-avocado { background: #9CCC65; }
   .t-ginger  { background: #F4B860; }
+  .t-cucumber { background: #26A69A; color: #fff; }
+  .t-cucumber .lbl { color: #fff; opacity: .85; }
+  .t-crab    { background: #FF8C42; }
 
   /* ---- Stash ---- */
   .stash-wrap { display: flex; flex-direction: column; align-items: center; }
@@ -267,26 +270,32 @@ const STASH_SIZE = 7;
 const VISIBLE_ORDERS = 4; // hráč vidí jen 4 objednávky a může plnit jen je
 
 const TYPES = {
-  salmon:  { label: "L", icon: "🐟", cls: "t-salmon"  },
-  rice:    { label: "R", icon: "🍚", cls: "t-rice"    },
-  seaweed: { label: "Ř", icon: "🌿", cls: "t-seaweed" },
-  tuna:    { label: "T", icon: "🐠", cls: "t-tuna"    },
-  avocado: { label: "A", icon: "🥑", cls: "t-avocado" },
-  ginger:  { label: "Z", icon: "🫚", cls: "t-ginger"  },
+  salmon:   { label: "L", icon: "🐟", cls: "t-salmon"   },
+  rice:     { label: "R", icon: "🍚", cls: "t-rice"     },
+  seaweed:  { label: "Ř", icon: "🌿", cls: "t-seaweed"  },
+  tuna:     { label: "T", icon: "🐠", cls: "t-tuna"     },
+  avocado:  { label: "A", icon: "🥑", cls: "t-avocado"  },
+  ginger:   { label: "Z", icon: "🫚", cls: "t-ginger"   },
+  cucumber: { label: "C", icon: "🥒", cls: "t-cucumber" },
+  crab:     { label: "K", icon: "🦀", cls: "t-crab"     },
 };
 
 // Pomocníci pro definici levelů
-const MAKI   = { name: "Maki",   items: ["salmon", "rice", "seaweed"] };
-const NIGIRI = { name: "Nigiri", items: ["tuna",   "avocado", "ginger"] };
+const MAKI    = { name: "Maki",    items: ["salmon", "rice", "seaweed"] };
+const NIGIRI  = { name: "Nigiri",  items: ["tuna",   "avocado", "ginger"] };
+// Uramaki sdílí rýži s Maki – proto rýže je v L5 nejčastější surovina.
+const URAMAKI = { name: "Uramaki", items: ["rice",   "cucumber", "crab"] };
+
 function makiOrders(n) {
   return Array.from({ length: n }, () => ({ name: MAKI.name, items: MAKI.items.slice() }));
 }
-// Promíchá m Maki a n Nigiri pomocí seedovaného PRNG (Mulberry32).
-// Stejný seed = stejné pořadí pokaždé – testovatelně dohratelné.
-function shuffledMixed(m, n, seed) {
+// Promíchá zadané počty pokrmů pomocí seedovaného PRNG (Mulberry32).
+// specs = [{recipe, count}, ...]. Stejný seed = stejné pořadí pokaždé.
+function shuffledOrders(specs, seed) {
   const arr = [];
-  for (let i = 0; i < m; i++) arr.push({ name: MAKI.name,   items: MAKI.items.slice()   });
-  for (let i = 0; i < n; i++) arr.push({ name: NIGIRI.name, items: NIGIRI.items.slice() });
+  specs.forEach(({ recipe, count }) => {
+    for (let i = 0; i < count; i++) arr.push({ name: recipe.name, items: recipe.items.slice() });
+  });
   let s = seed >>> 0;
   const rnd = () => {
     s = (s + 0x6D2B79F5) >>> 0;
@@ -300,9 +309,14 @@ function shuffledMixed(m, n, seed) {
   }
   return arr;
 }
+// Zachováno pro L4 (zpětná kompatibilita).
+function shuffledMixed(m, n, seed) {
+  return shuffledOrders([{ recipe: MAKI, count: m }, { recipe: NIGIRI, count: n }], seed);
+}
 const CHAR_TO_TYPE = {
-  L: "salmon", R: "rice", "Ř": "seaweed",
-  T: "tuna",   A: "avocado", Z: "ginger",
+  L: "salmon",   R: "rice",     "Ř": "seaweed",
+  T: "tuna",     A: "avocado",  Z: "ginger",
+  C: "cucumber", K: "crab",
 };
 
 // Level definice (chovají se jako "JSON levelu")
@@ -356,6 +370,24 @@ const LEVELS = [
       "ARRRLR",
     ],
     recipes: shuffledMixed(5, 5, 7),
+  },
+  {
+    // 6×6 = 36 surovin, 3 pokrmy, 12 objednávek.
+    // Maki & Uramaki sdílí rýži → rýže je v gridu nejčastější (8 ks).
+    name: "Level 5 — Triple Threat",
+    map: [
+      "ŘŘŘZZZ",
+      "ŘcttZC",
+      "KAakLL",
+      "KAktTL",
+      "RALRCC",
+      "RRRRRR",
+    ],
+    recipes: shuffledOrders([
+      { recipe: MAKI,    count: 4 },
+      { recipe: NIGIRI,  count: 4 },
+      { recipe: URAMAKI, count: 4 },
+    ], 13),
   },
 ];
 

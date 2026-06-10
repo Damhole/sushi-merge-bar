@@ -21,6 +21,7 @@ Hratelný prototyp 2D merge hry — vybíráš suroviny z mřížky, skládáš 
 | 2 | Více objednávek za sebou |
 | 3 | Blocker mechanika — kopat se odshora dolů |
 | 4 | Combo Bar — 2 pokrmy (Maki + Nigiri), 6 typů surovin, 10 objednávek v náhodném pořadí, mystery boxy |
+| 5 | Triple Threat — 3 pokrmy (přibyl Uramaki = rýže + okurka + krab, sdílí rýži s Maki), 8 typů surovin, 6×6 mřížka, 12 objednávek |
 
 ## Spustit lokálně
 
