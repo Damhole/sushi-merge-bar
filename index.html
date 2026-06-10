@@ -27,11 +27,25 @@
     background: var(--bg);
     color: var(--ink);
     display: flex;
-    flex-direction: column;
     align-items: center;
+    justify-content: center;
     min-height: 100vh;
     padding: 16px;
+    box-sizing: border-box;
     user-select: none;
+  }
+
+  /* Telefonový rámec – maximální výška ~iPhone 17 Pro Max (932 px).
+     Když je okno vyšší, hra zůstane v tomto rámci a vystředí se.
+     Když je okno nižší, hra obsadí celý dostupný prostor. */
+  .app {
+    width: 100%;
+    max-width: 360px;
+    height: min(calc(100dvh - 32px), 932px);
+    max-height: 932px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
   }
 
   header {
@@ -401,6 +415,7 @@
 </style>
 </head>
 <body>
+  <div class="app">
   <header>
     <div class="header-right">
       <div class="level-stepper" id="level-stepper">
@@ -428,6 +443,7 @@
     <div class="stash-label" id="stash-label">Pult (zásobník)</div>
     <div class="stash" id="stash"></div>
   </div>
+  </div><!-- /.app -->
 
 
   <!-- Overlays -->
