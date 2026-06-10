@@ -42,8 +42,19 @@
     justify-content: space-between;
     margin-bottom: 12px;
   }
-  header h1 { font-size: 20px; margin: 0; letter-spacing: .3px; }
+  header h1 { font-size: 20px; margin: 0; letter-spacing: .3px; flex: 1; }
+  header .header-right { display: flex; align-items: center; gap: 10px; }
   header .level { font-size: 13px; color: #777; }
+  .btn-icon {
+    width: 30px; height: 30px; border-radius: 50%;
+    background: #e3ddd0; color: #555; border: none;
+    cursor: pointer; font-size: 16px; line-height: 1;
+    display: flex; align-items: center; justify-content: center;
+    padding: 0;
+    transition: transform .4s, background-color .15s;
+  }
+  .btn-icon:hover { background: #d5cdb8; }
+  .btn-icon:active { transform: rotate(-360deg); }
 
   .panel {
     background: var(--panel);
@@ -67,7 +78,16 @@
   }
   .orders-wrap .task-title {
     margin-bottom: 18px; /* místo pro klipy nahoře */
-    display: flex; justify-content: space-between; align-items: center;
+    text-align: center;
+    min-height: 1px;
+  }
+  .score-display {
+    display: inline-block;
+    font-size: 32px;
+    font-weight: 800;
+    color: #2b2b2b;
+    letter-spacing: 1.5px;
+    line-height: 1;
   }
   /* Tenká kuchyňská lišta nad lístečky */
   .recipes::before {
@@ -132,6 +152,10 @@
   .order-card.timed {
     width: 78px;
     padding: 0;
+    /* overflow:visible — jinak by se uřízl klipper nahoře */
+  }
+  .order-card.timed .card-head {
+    border-radius: 6px 6px 0 0;
     overflow: hidden;
   }
   .order-card.timed .card-head {
@@ -188,13 +212,7 @@
     padding: 4px 6px 10px;
   }
 
-  /* Skóre v hlavičce panelu */
-  .task-title { display: flex; justify-content: space-between; align-items: center; }
-  .score-badge {
-    color: var(--gold); font-size: 12px; font-weight: 800;
-    letter-spacing: 0; display: none;
-  }
-  .score-badge.show { display: inline; }
+  /* (starý score badge nahrazen velkým středovým .score-display) */
   /* +N body letící text při mergi */
   .points-pop {
     position: absolute; pointer-events: none;
@@ -356,7 +374,10 @@
 <body>
   <header>
     <h1>🍣 Sushi Merge Bar</h1>
-    <span class="level" id="level-label"></span>
+    <div class="header-right">
+      <span class="level" id="level-label"></span>
+      <button class="btn-icon" id="btn-reset" title="Reset levelu" aria-label="Reset levelu">↻</button>
+    </div>
   </header>
 
   <!-- Přepínač levelů -->
@@ -364,7 +385,7 @@
 
   <!-- Objednávkové lístečky – „na liště" v kuchyni, bez kontejneru -->
   <div class="orders-wrap">
-    <div class="task-title" id="task-title">Objednávky</div>
+    <div class="task-title" id="task-title"></div>
     <div class="recipes" id="recipes"></div>
   </div>
 
@@ -377,10 +398,6 @@
     <div class="stash" id="stash"></div>
   </div>
 
-  <div class="buttons">
-    <button class="btn-submit" id="btn-submit">Submit</button>
-    <button class="btn-reset"  id="btn-reset">Reset</button>
-  </div>
 
   <!-- Overlays -->
   <div class="overlay" id="overlay-win">
@@ -811,18 +828,17 @@ function renderRecipes() {
   const sig = `${done}/${recipes.length}|${visibleRecipeIndices().join(",")}|${isTimedLevel()?1:0}`;
   if (sig === ordersSig) {
     // Skóre přepisuj i tak (mění se mezi překresleními).
-    updateScoreBadge();
+    updateScoreDisplay();
     return;
   }
   ordersSig = sig;
 
   const wrap = $("recipes");
   wrap.innerHTML = "";
-  // task-title: vlevo text, vpravo badge skóre (jen timed level)
-  $("task-title").innerHTML =
-    `<span>Objednávky — ${done}/${recipes.length} hotovo</span>` +
-    `<span class="score-badge${isTimedLevel() ? " show" : ""}" id="score-badge"></span>`;
-  updateScoreBadge();
+  // U timed levelu zobraz velké skóre uprostřed, jinak nic – hráč nemá vědět co ho čeká.
+  $("task-title").innerHTML = isTimedLevel()
+    ? `<span class="score-display" id="score-display">${score}</span>`
+    : "";
 
   const pendingPairs = recipes
     .map((r, i) => ({ r, i }))
@@ -864,10 +880,10 @@ function renderRecipes() {
   });
 }
 
-function updateScoreBadge() {
-  const el = document.getElementById("score-badge");
+function updateScoreDisplay() {
+  const el = document.getElementById("score-display");
   if (!el) return;
-  el.textContent = isTimedLevel() ? `🏆 ${score}` : "";
+  el.textContent = String(score);
 }
 
 function renderLevelSwitch() {
@@ -967,7 +983,6 @@ function hideOverlays() {
 }
 
 // ---- Init ----
-$("btn-submit").addEventListener("click", onSubmit);
 $("btn-reset").addEventListener("click", () => loadLevel(levelIndex));
 $("btn-restart").addEventListener("click", () => loadLevel(levelIndex));
 $("btn-next").addEventListener("click", () => {
