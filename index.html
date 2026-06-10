@@ -57,19 +57,76 @@
 
   /* ---- Recipe / task panel ---- */
   .task-title { font-size: 13px; font-weight: 600; color: #888; margin-bottom: 8px; text-transform: uppercase; letter-spacing: .5px; }
-  /* Overcooked styl: malé karty objednávek vedle sebe (horizontálně).
-     Zobrazujeme jen prvních 4 čekajících – ostatní jsou skryté,
-     vyřešit lze pouze ty viditelné. */
-  .recipes { display: flex; flex-direction: row; gap: 8px; overflow: hidden; padding-bottom: 4px; }
+  /* Objednávky jako papírové lístky pověšené na kuchyňské liště.
+     Žádný kontejner za nimi — sedí přímo na pozadí stránky. */
+  .orders-wrap {
+    width: 100%; max-width: 360px;
+    margin: 0 auto 18px;
+    padding: 0 4px;
+    position: relative;
+  }
+  .orders-wrap .task-title {
+    margin-bottom: 18px; /* místo pro klipy nahoře */
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  /* Tenká kuchyňská lišta nad lístečky */
+  .recipes::before {
+    content: ""; position: absolute;
+    left: 0; right: 0; top: 22px;
+    height: 3px; background: #bbb1a0;
+    border-radius: 2px;
+    box-shadow: 0 1px 0 rgba(255,255,255,.5), 0 2px 3px rgba(0,0,0,.08);
+  }
+  .recipes {
+    position: relative;
+    display: flex; flex-direction: row; gap: 12px;
+    overflow: hidden; padding: 14px 0 6px;
+  }
   .order-card {
+    position: relative;
     flex: 0 0 auto; width: 74px;
     display: flex; flex-direction: column; align-items: center; gap: 6px;
-    padding: 8px 6px; border-radius: 12px; background: #faf7f1;
-    border: 2px solid transparent; transition: .25s;
+    padding: 10px 6px 8px;
+    border-radius: 6px;
+    background: #fffaf0;
+    border: 1px solid rgba(0,0,0,.07);
+    box-shadow:
+      0 4px 10px rgba(0,0,0,.12),
+      0 1px 2px rgba(0,0,0,.08);
+    transition: box-shadow .25s, border-color .25s;
     animation: cardIn .3s ease-out;
   }
-  @keyframes cardIn { from { opacity: 0; transform: translateX(22px); } to { opacity: 1; transform: none; } }
-  .order-card.active { border-color: var(--gold); background: #fffdf2; box-shadow: 0 0 0 3px rgba(255,215,0,.15); }
+  @keyframes cardIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+  /* Klip „kolíček" na liště */
+  .order-card::before {
+    content: ""; position: absolute;
+    top: -10px; left: 50%;
+    transform: translateX(-50%);
+    width: 12px; height: 14px;
+    background: #4a4a4a;
+    border-radius: 2px 2px 1px 1px;
+    box-shadow:
+      inset 0 -2px 0 rgba(0,0,0,.25),
+      inset 0 2px 0 rgba(255,255,255,.12),
+      0 1px 2px rgba(0,0,0,.25);
+  }
+  /* Drobná dírka v klipu (kde prochází lišta) */
+  .order-card::after {
+    content: ""; position: absolute;
+    top: -5px; left: 50%;
+    transform: translateX(-50%);
+    width: 4px; height: 2px;
+    background: #2a2a2a;
+    border-radius: 1px;
+    z-index: 1;
+  }
+  .order-card.active {
+    border-color: var(--gold);
+    background: #fffdf2;
+    box-shadow:
+      0 0 0 3px rgba(255,215,0,.25),
+      0 5px 12px rgba(0,0,0,.14);
+  }
 
   /* Timed card – vyšší, se smajlíkem a barem nahoře */
   .order-card.timed {
@@ -305,8 +362,8 @@
   <!-- Přepínač levelů -->
   <div class="level-switch" id="level-switch"></div>
 
-  <!-- Task / recipe panel -->
-  <div class="panel">
+  <!-- Objednávkové lístečky – „na liště" v kuchyni, bez kontejneru -->
+  <div class="orders-wrap">
     <div class="task-title" id="task-title">Objednávky</div>
     <div class="recipes" id="recipes"></div>
   </div>
