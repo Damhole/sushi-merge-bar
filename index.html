@@ -27,7 +27,7 @@
     background: var(--bg);
     color: var(--ink);
     display: flex;
-    align-items: center;
+    align-items: flex-start;     /* uchycení k vrchní hraně viewportu */
     justify-content: center;
     min-height: 100vh;
     padding: 16px;
@@ -35,13 +35,11 @@
     user-select: none;
   }
 
-  /* Telefonový rámec – maximální výška ~iPhone 17 Pro Max (932 px).
-     Když je okno vyšší, hra zůstane v tomto rámci a vystředí se.
-     Když je okno nižší, hra obsadí celý dostupný prostor. */
+  /* Telefonový rámec – přirozená výška podle obsahu, max iPhone 17 Pro Max (932 px).
+     Uchycený k vrchní hraně – zbylé místo dole zůstává prázdné jako pozadí. */
   .app {
     width: 100%;
     max-width: 360px;
-    height: min(calc(100dvh - 32px), 932px);
     max-height: 932px;
     display: flex;
     flex-direction: column;
@@ -282,17 +280,16 @@
   }
 
   /* ---- Grid ---- */
-  /* Pružná oblast: zaplňuje volný prostor mezi objednávkami a pultem.
-     Pult tak zůstává na stejné pozici nezávisle na velikosti mřížky i typu úrovně,
-     mřížka je zarovnaná ke spodnímu okraji (blíž k pultu). */
+  /* Pevný čtvercový prostor pro mřížku – velikost dlaždic se počítá v JS
+     tak, aby celá mřížka (libovolné cols×rows) fitla do čtverce.
+     Mřížka je zarovnaná ke spodnímu okraji = blíž k pultu, který je hned pod. */
   .grid-area {
-    flex: 1 1 auto;
     width: 100%; max-width: 360px;
+    aspect-ratio: 1;
     margin: 0 auto 14px;
     display: flex;
     justify-content: center;
     align-items: flex-end;
-    min-height: 240px;
   }
   .grid {
     display: grid; gap: var(--gap);
